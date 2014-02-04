@@ -1,9 +1,14 @@
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.backends import ModelBackend
-from django_town.social.oauth2.server import oauth2_server
+try:
+    from django_town.social.oauth2.server import oauth2_server
+except ImportError:
+    oauth2_server = None
+    pass
 
-class TastersBackend(ModelBackend):
+
+class SocialBackend(ModelBackend):
     
     def authenticate(self, username=None, password=None, **kwargs):
         auth_type = kwargs.get('type', None)
@@ -17,15 +22,19 @@ class TastersBackend(ModelBackend):
             elif auth_type == "access_token":
                 return self.access_token_authenticate(**kwargs)
             else:
-                return super(TastersBackend, self).authenticate(username=username, password=password)
+                return super(SocialBackend, self).authenticate(username=username, password=password)
         else:
-            return super(TastersBackend, self).authenticate(username=username, password=password)
+            return super(SocialBackend, self).authenticate(username=username, password=password)
     
     def facebook_authenticate(self, access_token):
-        return oauth2_server.user_from_facebook_access_token(access_token)
+        if oauth2_server:
+            return oauth2_server.user_from_facebook_access_token(access_token)
+        return None
 
     def google_authenticate(self, access_token):
-        return oauth2_server.user_from_google_access_token(access_token)
+        if oauth2_server:
+            return oauth2_server.user_from_google_access_token(access_token)
+        return None
 
     def twitter_authenticate(self, twitter_id, oauth_token, oauth_token_secret):
         return None
