@@ -1,0 +1,1 @@
+from django_town import mongoengine_extension
