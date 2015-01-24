@@ -2,7 +2,7 @@
 
 import itertools
 import mimetypes
-import mimetools
+import email.generator
 
 # this class allows you to upload a file to a URL
 # using pure urllib
@@ -14,7 +14,7 @@ class MultiPartForm(object):
     def __init__(self):
         self.form_fields = []
         self.files = []
-        self.boundary = mimetools.choose_boundary()
+        self.boundary = email.generator._make_boundary()
         return
 
     def get_content_type(self):
@@ -44,25 +44,25 @@ class MultiPartForm(object):
 
         # Add the form fields
         parts.extend(
-                     [part_boundary,
-                     'Content-Disposition: form-data; name="%s"' % name,
-                     '',
-                     value,
-                     ]
-                     for name, value in self.form_fields
-                     )
+            [part_boundary,
+             'Content-Disposition: form-data; name="%s"' % name,
+             '',
+             value,
+            ]
+            for name, value in self.form_fields
+        )
 
         # Add the files to upload
         parts.extend(
-                     [part_boundary,
-                     'Content-Disposition: file; name="%s"; filename="%s"' % \
-                     (field_name, filename),
-                     'Content-Type: %s' % content_type,
-                     '',
-                     body,
-                     ]
-                     for field_name, filename, content_type, body in self.files
-                     )
+            [part_boundary,
+             'Content-Disposition: file; name="%s"; filename="%s"' % \
+             (field_name, filename),
+             'Content-Type: %s' % content_type,
+             '',
+             body,
+            ]
+            for field_name, filename, content_type, body in self.files
+        )
 
         # Flatten the list and add closing boundary marker,
         # then return CR+LF separated data

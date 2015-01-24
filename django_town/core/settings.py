@@ -1,11 +1,14 @@
 from django.conf import settings
 from django.utils.functional import SimpleLazyObject
+
 from django_town.core.exceptions import SettingError
 from django_town.utils import DictObject, recursive_dict_update
 
+
 _DJANGO_TOWN_SETTINGS = {
     "oauth2": {
-        "USER_SECRET_KEY_ID_LENGTH": 10,
+        "USER_SECRET_KEY_LENGTH": 5,
+        "SERVICE_SECRET_KEY_LENGTH": 5,
         "CLIENT_ID_LENGTH": 30,
         "CLIENT_SECRET_LENGTH": 30,
         "ACCESS_TOKEN_EXPIRATION": 3600,
@@ -33,14 +36,16 @@ _DJANGO_TOWN_SETTINGS = {
         "USERNAME": None,
         "PASSWORD": None,
     },
-    "social": {}
+    "social": {
+        "master_oauth2_service_id": 1
+    }
 }
-
 
 try:
     recursive_dict_update(_DJANGO_TOWN_SETTINGS, (getattr(settings, "DJANGO_TOWN_SETTINGS")))
 except AttributeError:
     pass
+
 
 def lazy_load_settings(key, necessary_fields=None):
     ret = DictObject(_DJANGO_TOWN_SETTINGS[key], case_sensitive=False)
@@ -54,7 +59,8 @@ def lazy_load_settings(key, necessary_fields=None):
 CORE_SETTINGS = SimpleLazyObject(lambda: lazy_load_settings('core'))
 OAUTH2_SETTINGS = SimpleLazyObject(lambda: lazy_load_settings('oauth2', necessary_fields=['ACCESS_TOKEN_SECRET_KEY',
                                                                                           "REFRESH_TOKEN_SECRET_KEY",
-                                                                                          'CODE_SECRET_KEY', 'SCOPE']))
+                                                                                          'CODE_SECRET_KEY', 'SCOPE',
+                                                                                          'BASE_URL']))
 REST_SETTINGS = SimpleLazyObject(lambda: lazy_load_settings('rest'))
 CACHE_SETTINGS = SimpleLazyObject(lambda: lazy_load_settings('cache'))
 MICRODATA_SETTINGS = SimpleLazyObject(lambda: lazy_load_settings('microdata'))

@@ -1,57 +1,22 @@
 # -*- coding: utf-8 -*-
-#!/usr/bin/env python
-#
-# Copyright 2010 Facebook
-#
-# Licensed under the Apache License, Version 2.0 (the "License"); you may
-# not use this file except in compliance with the License. You may obtain
-# a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-# License for the specific language governing permissions and limitations
-# under the License.
-"""Python client library for the Facebook Platform.
 
-This client library is designed to support the Graph API and the official
-Facebook JavaScript SDK, which is the canonical way to implement
-Facebook authentication. Read more about the Graph API at
-http://developers.facebook.com/docs/api. You can download the Facebook
-JavaScript SDK at http://github.com/facebook/connect-js/.
-
-If your application is using Google AppEngine's webapp framework, your
-usage of this module might look like this:
-
-    user = facebook.get_user_from_cookie(self.request.cookies, key, secret)
-    if user:
-        graph = facebook.GraphAPI(user["access_token"])
-        profile = graph.get_object("me")
-        friends = graph.get_connections("me", "friends")
-
-"""
-
-import urllib
-import urlparse
-import urllib2
 import hashlib
 import time
 import base64
 import hmac
+from django.utils.six import iteritems
+from django_town.utils import json
+from django_town.utils.with3 import quote_plus, urlencode, urlparse, urlopen, Request, HTTPError
 
 from django_town.facebook.multipartform import MultiPartForm
-from django_town.utils import json
 from django_town.facebook.exceptions import FBPermissionException, FBTokenExpiredException, \
     FBTokenInvalidException
 
 
 class Client(object):
-
-    def __init__(self,  app_id=None, app_secret=None, access_token=None, code=None,
+    def __init__(self, app_id=None, app_secret=None, access_token=None, code=None,
                  token_invalidate_callback=None, token_permission_required_callback=None,
-                 token_expired_callback=None):
+                 token_expired_callback=None, api_version="v1.0"):
         self.app_id = app_id
         self.user_id = None
         self.app_secret = app_secret
@@ -61,6 +26,7 @@ class Client(object):
         self.token_invalidate_callback = token_invalidate_callback
         self.token_permission_required_callback = token_permission_required_callback
         self.token_expired_callback = token_expired_callback
+        self.api_version = api_version
 
     def _token_expired(self):
         if self.token_expired_callback:
@@ -95,18 +61,18 @@ class Client(object):
             err = json.loads(err)
             self._permission_error()
 
-    def get_login_url(self, request,redirect_uri, permissions ):
+    def get_login_url(self, request, redirect_uri, permissions):
         request.session['facebook_state'] = hashlib.sha224(str(time.time())).hexdigest()
-        url = "https://www.facebook.com/dialog/oauth?client_id=%s&redirect_uri=%s&state=%s&scope=%s" % \
-              (self.app_id, urllib.quote_plus(redirect_uri), request.session['facebook_state'],permissions)
+        url = "https://www.facebook.com/" + ("v2.0/" if self.api_version == "v2.0" else "") + "dialog/oauth?client_id=%s&redirect_uri=%s&state=%s&scope=%s" % \
+              (self.app_id, quote_plus(redirect_uri), request.session['facebook_state'], ",".join(permissions))
         return url
 
 
     def get_access_token_from_short_token(self, short):
         url = "https://graph.facebook.com/oauth/access_token?%s" % \
-              (urllib.urlencode({'client_id': self.app_id, 'grant_type': 'fb_exchange_token',
+              (urlencode({'client_id': self.app_id, 'grant_type': 'fb_exchange_token',
                                  'client_secret': self.app_secret, 'fb_exchange_token': short}))
-        parsed = urlparse.parse_qs(urllib2.urlopen(url).read())
+        parsed = urlparse.parse_qs(urlopen(url).read())
         access_token = parsed['access_token']
         if type(access_token) is list or type(access_token) is tuple:
             access_token = access_token[0]
@@ -114,16 +80,16 @@ class Client(object):
         self.access_token = access_token
         return access_token
 
-    def get_access_token_and_expire_timestamp(self, request,redirect_uri):
+    def get_access_token_and_expire_timestamp(self, request, redirect_uri):
         if not request.session.has_key('facebook_state'):
             return None, None
         elif request.session['facebook_state'] != request.GET.get('state'):
             return None, None
 
-        url = "https://graph.facebook.com/oauth/access_token?%s" % (urllib.urlencode({
-        'client_id': self.app_id, 'redirect_uri': redirect_uri, 'client_secret': self.app_secret,
-        'code': request.GET.get('code')}))
-        parsed = urlparse.parse_qs(urllib2.urlopen(url).read())
+        url = "https://graph.facebook.com/oauth/access_token?%s" % (urlencode({
+            'client_id': self.app_id, 'redirect_uri': redirect_uri, 'client_secret': self.app_secret,
+            'code': request.GET.get('code')}))
+        parsed = urlparse.parse_qs(urlopen(url).read())
         access_token = parsed['access_token']
         expires = parsed['expires']
         if type(access_token) is list or type(access_token) is tuple:
@@ -134,9 +100,9 @@ class Client(object):
         return access_token, expires
 
     def get_access_token(self, redirect_uri, code):
-        url = "oauth/access_token?%s" % (urllib.urlencode({
-       'client_id': self.app_id, 'redirect_uri': redirect_uri, 'client_secret': self.app_secret, 'code': code}))
-        parsed = urlparse.parse_qs(urllib2.urlopen(url).read())
+        url = "oauth/access_token?%s" % (urlencode({
+            'client_id': self.app_id, 'redirect_uri': redirect_uri, 'client_secret': self.app_secret, 'code': code}))
+        parsed = urlparse.parse_qs(urlopen(url).read())
         access_token = parsed['access_token']
         if type(access_token) is list or type(access_token) is tuple:
             access_token = access_token[0]
@@ -147,13 +113,13 @@ class Client(object):
     def get_page_access_token(self, uid, access_token=None):
         if access_token is None:
             access_token = self.access_token
-        url = "%s?fields=access_token&%s" % (uid,urllib.urlencode({'access_token': access_token}))
+        url = "%s?fields=access_token&%s" % (uid, urlencode({'access_token': access_token}))
         return self.get_object(url)['access_token']
 
     def set_access_token(self, access_token):
         self.access_token = access_token
 
-    def check_permissions(self, permissions, required_permissions = "", token = None ):
+    def check_permissions(self, permissions, required_permissions="", token=None):
         if token is None:
             token = self.access_token
         ret = self.get_object('me/permissions', access_token=token)['data'][0]
@@ -174,34 +140,38 @@ class Client(object):
         return is_success, (allowed, disallowed)
 
     def get_object(self, path, **kwargs):
-        url = "https://graph.facebook.com/%s?%s" % (str(path), urllib.urlencode(kwargs))
+        if not 'access_token' in kwargs and self.access_token:
+            kwargs['access_token'] = self.access_token
+        url = "https://graph.facebook.com/" + self.api_version + "/%s?%s" % (str(path), urlencode(kwargs))
         try:
-            ret = urllib2.urlopen(url).read()
+            ret = urlopen(url).read()
             return json.loads(ret)
-        except urllib2.HTTPError, e:
+        except HTTPError as e:
             self._error_handle(e)
 
     def post_object(self, path, data=None, file_data=None):
-        url = "https://graph.facebook.com/%s" % str(path)
+        if not 'access_token' in data and self.access_token:
+            data['access_token'] = self.access_token
+        url = "https://graph.facebook.com/" + self.api_version + "/%s" % str(path)
         if not data:
             data = {}
         try:
             if file_data:
                 form = MultiPartForm()
-                for key, val in data.iteritems():
+                for key, val in iteritems(data):
                     form.add_field(key, val)
                 for key, val in file_data.iteritmes():
                     form.add_file(key, val['name'], val['source'], mimetype=val.get('mimetype'))
-                request = urllib2.Request(url)
+                request = Request(url)
                 body = str(form)
                 request.add_header('Content-type', form.get_content_type())
                 request.add_header('Content-length', len(body))
-                request.add_data(body)
-                ret = urllib2.urlopen(request).read()
+                request.data =body
+                ret = urlopen(request).read()
             else:
-                ret = urllib2.urlopen(url, data).read()
+                ret = urlopen(url, urlencode(data)).read()
             return json.loads(ret)
-        except urllib2.HTTPError, e:
+        except HTTPError as e:
             self._error_handle(e)
             return {}
 
@@ -217,12 +187,12 @@ class Client(object):
 
             # allow the signed_request to function for upto 1 day
             if sig == expected_sig and \
-                    data[u'issued_at'] > (time.time() - 86400):
+                            data[u'issued_at'] > (time.time() - 86400):
                 self.signed_request = data
                 self.user_id = data.get(u'user_id')
                 self.access_token = data.get(u'oauth_token')
         except ValueError:
-            pass # ignore if can't split on dot
+            pass  # ignore if can't split on dot
 
     @staticmethod
     def base64_url_decode(data):
@@ -241,7 +211,7 @@ class Client(object):
         else:
             redirect_uri = "http://" + request.get_host() + request.path_info
         if request.GET.get('code'):
-            access_token, expire_timestamp = self.get_access_token_and_expire_timestamp(request,redirect_uri)
+            access_token, expire_timestamp = self.get_access_token_and_expire_timestamp(request, redirect_uri)
             self.access_token = access_token
             return True, access_token
         else:

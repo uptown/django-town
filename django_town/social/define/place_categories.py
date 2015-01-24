@@ -95,7 +95,14 @@ PLACE_CATEGORIES = (
     (10800, "travel_agency"),
     (10900, "university"),
     (11000, "veterinary_care"),
-    (11100, "zoo"))
+    (11100, "zoo"),
+
+
+
+
+    (70000, "locality"),
+
+)
 
 CONTACT_TYPES = (
     (0, "phone"),
@@ -107,6 +114,23 @@ CONTACT_TYPES = (
 
 ADDRESS_COMPONENT_TYPES = (
     (0, "country"),
-    (1, "locality"),
-    (2, "sublocality"),
+    (1, "administrative_area_level_1"),
+    (2, "administrative_area_level_2"),
+    (3, "administrative_area_level_3"),
+    (4, "colloquial_area"),
+    (5, "locality"),
+    (6, "sublocality"),
+    (7, "route"),
+    (8, "intersection"),
+    (9, "neighborhood"),
+    (10, "premise"),
+    (11, "natural_feature"),
+    (12, "airport"),
+    (13, "park"),
+    (14, "point_of_interest"),
+    (15, "post_box"),
+    (16, "street_number"),
+    (17, "street_address"),
+    (18, "floor"),
+    (19, "room"),
 )

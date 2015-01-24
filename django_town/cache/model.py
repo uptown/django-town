@@ -2,13 +2,14 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import models, transaction, IntegrityError
 from django.forms.models import model_to_dict
 from django.utils.functional import cached_property, LazyObject
+
 from django_town.core.settings import CORE_SETTINGS
-from django_town.cache import defaultCacheManager
+from django_town.cache.manager import defaultCacheManager
 from django_town.utils import CurrentTimestamp
+from django.utils.six import iteritems
 
 
 class CachedObject(LazyObject):
-
     def __init__(self, cached_dict, model, db_object=None):
         assert cached_dict or db_object
         if db_object:
@@ -26,28 +27,30 @@ class CachedObject(LazyObject):
 
     def _setup(self):
         self._wrapped = self.__dict__['_model'].objects.get(
-                                                pk=self.__dict__['_cached_dict'][self.__dict__['_model']._meta.pk.name])
+            pk=self.__dict__['_cached_dict'][self.__dict__['_model']._meta.pk.name])
 
 
 class CachingManager(models.Manager):
-
     def get_cached(self, **kwargs):
         key = self.cache_key(**kwargs)
         ret = defaultCacheManager.get(key)
         if not ret:
             db_object = super(CachingManager, self).get(**kwargs)
             ret = model_to_dict(db_object)
-            ret['__cached_date'] = CurrentTimestamp()
+            ret['__cached_date'] = CurrentTimestamp()()
             defaultCacheManager.set(key, ret, self.cache_duration)
             return CachedObject(ret, self.model, db_object=db_object)
         return CachedObject(ret, self.model)
 
-    def get(self, **kwargs):
-        try:
-            return super(CachingManager, self).get(**kwargs)
-        except ObjectDoesNotExist:
-            defaultCacheManager.delete(self.cache_key(**kwargs))
-            raise
+    # def get(self, **kwargs):
+    # try:
+    #         return super(CachingManager, self).get(**kwargs)
+    #     except ObjectDoesNotExist:
+    #         try:
+    #             defaultCacheManager.delete(self.cache_key(**kwargs))
+    #         except KeyError:
+    #             pass
+    #         raise
 
     def get_or_create_safe(self, **kwargs):
         created = False
@@ -76,7 +79,7 @@ class CachingManager(models.Manager):
 
     def cache_key(self, **kwargs):
         param = {}
-        for key, val in kwargs.iteritems():
+        for key, val in iteritems(kwargs):
             if isinstance(val, models.Model):
                 param[key + "__pk"] = val.pk
             else:
@@ -100,17 +103,16 @@ class CachingRelatedManager(CachingManager):
 
 
 class CachingModel(models.Model):
-
-    def delete_with_cache(self):
-        defaultCacheManager.delete(self.__class__.objects.cache_key_with_instance(self))
-        return super(CachingModel, self).delete()
-
-    def save_with_cache(self, *args, **kwargs):
-        defaultCacheManager.delete(self.__class__.objects.cache_key_with_instance(self))
-        return super(CachingModel, self).save(*args, **kwargs)
-
-    save = save_with_cache
-    delete = delete_with_cache
+    # def delete_with_cache(self):
+    #     defaultCacheManager.delete(self.__class__.objects.cache_key_with_instance(self))
+    #     return super(CachingModel, self).delete()
+    #
+    # def save_with_cache(self, *args, **kwargs):
+    #     defaultCacheManager.delete(self.__class__.objects.cache_key_with_instance(self))
+    #     return super(CachingModel, self).save(*args, **kwargs)
+    #
+    # save = save_with_cache
+    # delete = delete_with_cache
     objects = CachingManager()
 
     class Meta:

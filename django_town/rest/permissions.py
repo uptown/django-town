@@ -1,9 +1,11 @@
-from __future__ import unicode_literals
+#from __future__ import unicode_literals
+
 from django.http import Http404
+
 from django_town.rest.exceptions import RestUnauthorized
 
-SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS']
 
+SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS']
 
 
 class BasePermission(object):
@@ -11,7 +13,31 @@ class BasePermission(object):
         pass
 
 
+class OrPermissionClass(BasePermission):
+
+    def __init__(self, permissions):
+        self._permissions = permissions
+
+    def check_permission(self, request, *args, **kwargs):
+        for each_permission in self._permissions:
+            try:
+                each_permission().check_permission(request, *args, **kwargs)
+            except RestUnauthorized:
+                pass
+        raise RestUnauthorized()
+
+    def __call__(self, *args, **kwargs):
+        #TODO check speed and change structure
+        new_permission_class = type("NewPermissionClass", (BasePermission, ), {})
+        new_permission_class._permissions = self._permissions
+        new_permission_class.check_permission = self.check_permission
+        return new_permission_class()
+
+
 class AllowAny(BasePermission):
+    """
+    Allows any access
+    """
     pass
 
 
@@ -19,6 +45,7 @@ class IsAuthenticated(BasePermission):
     """
     Allows access only to authenticated users.
     """
+
     def check_permission(self, request, *args, **kwargs):
         if self.is_authenticated(request):
             return
@@ -34,6 +61,7 @@ class IsAdminUser(BasePermission):
     """
     Allows access only to admin users.
     """
+
     def check_permission(self, request, *args, **kwargs):
         if request.user and request.user.is_staff:
             return

@@ -29,7 +29,7 @@ ABERRANT_PLURAL_MAP = {
     'torpedo': 'torpedoes',
     'veto': 'vetoes',
     'woman': 'women',
-    }
+}
 
 VOWELS = set('aeiou')
 

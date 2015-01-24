@@ -1,9 +1,9 @@
-import urllib2
 
 from django.utils.functional import SimpleLazyObject
 
 from django_town.core.settings import SOCIAL_SETTINGS
 from django_town.facebook.client import Client
+from django_town.utils import quote
 
 
 default_client = SimpleLazyObject(lambda: Client(app_id=SOCIAL_SETTINGS.FACEBOOK_APP_ID,
@@ -15,7 +15,7 @@ def get_object(path, **kwargs):
 
 
 def fql(query, access_token=None):
-    return get_object('fql', query=urllib2.quote(query), access_token=access_token)
+    return get_object('fql', q=quote(query), access_token=access_token)
 
 
 def get_profile(access_token=None):
